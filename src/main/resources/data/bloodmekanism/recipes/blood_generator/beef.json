@@ -1,0 +1,1 @@
+{ "type": "bloodmekanism:blood_generator", "input": { "item": "minecraft:beef" }, "blood": 400, "energy": 8000, "ticks": 120 }

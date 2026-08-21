@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "bloodmagic:item/masterbloodorb",
+    "layer1": "mekanism:item/ultimate_control_circuit"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": ["ACA", "EOE", "ACA"],
+  "key": {
+    "A": { "item": "mekanism:alloy_reinforced" },
+    "C": { "item": "mekanism:advanced_control_circuit" },
+    "E": { "item": "mekanism:energy_tablet" },
+    "O": { "item": "bloodmagic:apprenticebloodorb" }
+  },
+  "result": { "item": "bloodmekanism:mechanical_apprentice_blood_orb" }
+}

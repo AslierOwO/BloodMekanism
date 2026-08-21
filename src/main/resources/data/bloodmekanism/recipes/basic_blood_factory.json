@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": ["ACA", "SBS", "AEA"],
+  "key": {
+    "A": { "item": "mekanism:alloy_infused" },
+    "C": { "item": "mekanism:basic_control_circuit" },
+    "S": { "item": "mekanism:steel_casing" },
+    "B": { "item": "bloodmagic:altar" },
+    "E": { "item": "mekanism:energy_tablet" }
+  },
+  "result": { "item": "bloodmekanism:basic_blood_factory" }
+}

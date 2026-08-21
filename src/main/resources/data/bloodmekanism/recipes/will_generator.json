@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": ["TCT", "SFS", "TET"],
+  "key": {
+    "T": { "item": "mekanism:basic_chemical_tank" },
+    "C": { "item": "mekanism:elite_control_circuit" },
+    "S": { "item": "mekanism:steel_casing" },
+    "F": { "item": "bloodmagic:soulforge" },
+    "E": { "item": "mekanism:energy_tablet" }
+  },
+  "result": { "item": "bloodmekanism:will_generator" }
+}

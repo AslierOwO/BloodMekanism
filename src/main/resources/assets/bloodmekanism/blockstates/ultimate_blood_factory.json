@@ -1,0 +1,12 @@
+{
+  "variants": {
+    "facing=north,lit=false": { "model": "bloodmekanism:block/ultimate_blood_factory" },
+    "facing=south,lit=false": { "model": "bloodmekanism:block/ultimate_blood_factory", "y": 180 },
+    "facing=east,lit=false": { "model": "bloodmekanism:block/ultimate_blood_factory", "y": 90 },
+    "facing=west,lit=false": { "model": "bloodmekanism:block/ultimate_blood_factory", "y": 270 },
+    "facing=north,lit=true": { "model": "bloodmekanism:block/ultimate_blood_factory_active" },
+    "facing=south,lit=true": { "model": "bloodmekanism:block/ultimate_blood_factory_active", "y": 180 },
+    "facing=east,lit=true": { "model": "bloodmekanism:block/ultimate_blood_factory_active", "y": 90 },
+    "facing=west,lit=true": { "model": "bloodmekanism:block/ultimate_blood_factory_active", "y": 270 }
+  }
+}

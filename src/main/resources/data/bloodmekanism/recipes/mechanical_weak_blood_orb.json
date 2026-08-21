@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": ["ACA", "EOE", "ACA"],
+  "key": {
+    "A": { "item": "mekanism:alloy_infused" },
+    "C": { "item": "mekanism:basic_control_circuit" },
+    "E": { "item": "mekanism:energy_tablet" },
+    "O": { "item": "bloodmagic:weakbloodorb" }
+  },
+  "result": { "item": "bloodmekanism:mechanical_weak_blood_orb" }
+}

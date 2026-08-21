@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": ["TCT", "SDS", "TET"],
+  "key": {
+    "T": { "item": "mekanism:basic_chemical_tank" },
+    "C": { "item": "mekanism:basic_control_circuit" },
+    "S": { "item": "mekanism:steel_casing" },
+    "D": { "item": "bloodmagic:sacrificialdagger" },
+    "E": { "item": "mekanism:energy_tablet" }
+  },
+  "result": { "item": "bloodmekanism:hemogenic_machine" }
+}

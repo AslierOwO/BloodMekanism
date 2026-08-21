@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": ["ACA", "MFM", "ACA"],
+  "key": {
+    "A": { "item": "mekanism:alloy_atomic" },
+    "C": { "item": "mekanism:ultimate_control_circuit" },
+    "M": { "item": "bloodmagic:alchemicalreactionchamber" },
+    "F": { "item": "bloodmekanism:absolute_blood_factory" }
+  },
+  "result": { "item": "bloodmekanism:industrial_arc_factory" }
+}

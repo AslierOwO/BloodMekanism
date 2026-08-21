@@ -1,0 +1,76 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'maven-publish'
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+}
+
+version = mod_version
+group = mod_group
+
+base {
+    archivesName = mod_id
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+minecraft {
+    mappings channel: 'official', version: minecraft_version
+    copyIdeResources = true
+}
+
+repositories {
+    flatDir { dirs '../Mekanism/build/libs' }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+
+    // Compile the client screens against Mekanism's native GUI framework.
+    compileOnly fileTree(dir: '../Mekanism/build/libs', include: '*-dev.jar')
+
+    // Blood Magic is loaded from source by the shared development client.
+    compileOnly files('../BloodMagic/build/classes/java/main')
+    compileOnly files('../BloodMagic/build/resources/main')
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    def values = [
+        minecraft_version: minecraft_version,
+        forge_version: forge_version,
+        mod_id: mod_id,
+        mod_name: mod_name,
+        mod_version: mod_version
+    ]
+    inputs.properties values
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
+        expand values
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes([
+            'Specification-Title': mod_id,
+            'Specification-Vendor': 'BloodMekanism',
+            'Specification-Version': '1',
+            'Implementation-Title': project.name,
+            'Implementation-Version': project.jar.archiveVersion,
+            'Implementation-Vendor': 'BloodMekanism'
+        ])
+    }
+    finalizedBy 'reobfJar'
+}
+
+tasks.register('devJar', Jar) {
+    from sourceSets.main.output
+    archiveClassifier = 'dev'
+}
+
+tasks.named('build').configure {
+    dependsOn tasks.named('devJar')
+}

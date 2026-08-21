@@ -1,0 +1,1 @@
+{ "type": "bloodmekanism:blood_generator", "input": { "item": "minecraft:rabbit" }, "blood": 250, "energy": 5000, "ticks": 90 }

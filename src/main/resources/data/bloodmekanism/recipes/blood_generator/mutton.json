@@ -1,0 +1,1 @@
+{ "type": "bloodmekanism:blood_generator", "input": { "item": "minecraft:mutton" }, "blood": 350, "energy": 7000, "ticks": 110 }

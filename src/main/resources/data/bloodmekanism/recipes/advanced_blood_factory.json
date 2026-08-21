@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": ["RCR", "RFR", "RCR"],
+  "key": {
+    "R": { "item": "mekanism:alloy_reinforced" },
+    "C": { "item": "mekanism:advanced_control_circuit" },
+    "F": { "item": "bloodmekanism:basic_blood_factory" }
+  },
+  "result": { "item": "bloodmekanism:advanced_blood_factory" }
+}

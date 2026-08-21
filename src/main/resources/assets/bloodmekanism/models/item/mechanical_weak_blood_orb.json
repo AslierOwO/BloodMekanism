@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "bloodmagic:item/weakbloodorb",
+    "layer1": "mekanism:item/basic_control_circuit"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": ["PAP", "EFE", "PAP"],
+  "key": {
+    "P": { "item": "mekanism:pellet_antimatter" },
+    "A": { "item": "bloodmagic:archmagebloodorb" },
+    "E": { "item": "bloodmagic:etherealslate" },
+    "F": { "item": "bloodmekanism:ultimate_blood_factory" }
+  },
+  "result": { "item": "bloodmekanism:absolute_blood_factory" }
+}

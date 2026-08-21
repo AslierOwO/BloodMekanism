@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": ["PCP", "EOE", "PCP"],
+  "key": {
+    "P": { "item": "mekanism:pellet_antimatter" },
+    "C": { "item": "mekanism:ultimate_control_circuit" },
+    "E": { "item": "mekanism:energy_tablet" },
+    "O": { "item": "bloodmagic:archmagebloodorb" }
+  },
+  "result": { "item": "bloodmekanism:mechanical_archmage_blood_orb" }
+}
