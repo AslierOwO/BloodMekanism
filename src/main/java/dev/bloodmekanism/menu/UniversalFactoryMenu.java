@@ -44,8 +44,8 @@ public final class UniversalFactoryMenu extends AbstractContainerMenu {
     private UniversalFactoryMenu(int id, Inventory playerInventory, UniversalFactoryBlockEntity machine, boolean clientSide) {
         super(ModContent.UNIVERSAL_FACTORY_MENU.get(), id);
         this.machine = machine;
-        this.data = clientSide || machine == null ? new SimpleContainerData(52) : machine.data;
-        checkContainerDataCount(data, 52);
+        this.data = clientSide || machine == null ? new SimpleContainerData(56) : machine.data;
+        checkContainerDataCount(data, 56);
         addDataSlots(data);
         if (machine != null) {
             for (int channel = 0; channel < UniversalFactoryBlockEntity.INPUT_COUNT; channel++) {
@@ -55,8 +55,8 @@ public final class UniversalFactoryMenu extends AbstractContainerMenu {
             for (int channel = 0; channel < UniversalFactoryBlockEntity.OUTPUT_COUNT; channel++) {
                 addSlot(new SlotItemHandler(machine.inventory(), UniversalFactoryBlockEntity.OUTPUT_START + channel, 138 + channel % 3 * 19, 22 + channel / 3 * 19));
             }
-            addSlot(new SlotItemHandler(machine.inventory(), UniversalFactoryBlockEntity.SPEED_UPGRADE_SLOT, 207, 23));
-            addSlot(new SlotItemHandler(machine.inventory(), UniversalFactoryBlockEntity.ENERGY_UPGRADE_SLOT, 207, 49));
+            addSlot(new UpgradeSlot(machine.inventory(), UniversalFactoryBlockEntity.UPGRADE_INPUT_SLOT, false));
+            addSlot(new UpgradeSlot(machine.inventory(), UniversalFactoryBlockEntity.UPGRADE_OUTPUT_SLOT, true));
         }
         addPlayerInventory(playerInventory, 38, 112);
     }
@@ -82,10 +82,9 @@ public final class UniversalFactoryMenu extends AbstractContainerMenu {
         ItemStack copy = original.copy();
         if (index < UniversalFactoryBlockEntity.SLOT_COUNT) {
             if (!moveItemStackTo(original, UniversalFactoryBlockEntity.SLOT_COUNT, slots.size(), true)) return ItemStack.EMPTY;
-        } else if (original.getItem() instanceof IUpgradeItem upgradeItem && upgradeItem.getUpgradeType(original) == Upgrade.SPEED) {
-            if (!moveItemStackTo(original, UniversalFactoryBlockEntity.SPEED_UPGRADE_SLOT, UniversalFactoryBlockEntity.SPEED_UPGRADE_SLOT + 1, false)) return ItemStack.EMPTY;
-        } else if (original.getItem() instanceof IUpgradeItem upgradeItem && upgradeItem.getUpgradeType(original) == Upgrade.ENERGY) {
-            if (!moveItemStackTo(original, UniversalFactoryBlockEntity.ENERGY_UPGRADE_SLOT, UniversalFactoryBlockEntity.ENERGY_UPGRADE_SLOT + 1, false)) return ItemStack.EMPTY;
+        } else if (original.getItem() instanceof IUpgradeItem upgradeItem
+              && (upgradeItem.getUpgradeType(original) == Upgrade.SPEED || upgradeItem.getUpgradeType(original) == Upgrade.ENERGY)) {
+            if (!moveItemStackTo(original, UniversalFactoryBlockEntity.UPGRADE_INPUT_SLOT, UniversalFactoryBlockEntity.UPGRADE_INPUT_SLOT + 1, false)) return ItemStack.EMPTY;
         } else if (UniversalFactoryBlockEntity.isBloodOrb(original)) {
             if (!moveItemStackTo(original, UniversalFactoryBlockEntity.CATALYST_SLOT, UniversalFactoryBlockEntity.CATALYST_SLOT + 1, false)) return ItemStack.EMPTY;
         } else if (!moveItemStackTo(original, 0, UniversalFactoryBlockEntity.INPUT_COUNT, false)) return ItemStack.EMPTY;
@@ -94,7 +93,7 @@ public final class UniversalFactoryMenu extends AbstractContainerMenu {
     }
 
     @Override public boolean stillValid(Player player) {
-        return machine != null && player.distanceToSqr(machine.getBlockPos().getX() + 0.5, machine.getBlockPos().getY() + 0.5, machine.getBlockPos().getZ() + 0.5) <= 64;
+        return machine != null && machine.isMenuValid(player);
     }
 
     public int energy() { return data.get(0); }
@@ -123,6 +122,10 @@ public final class UniversalFactoryMenu extends AbstractContainerMenu {
     public int willGasCapacity() { return data.get(50); }
     public int altarTarget() { return data.get(51); }
     public ItemStack altarTargetStack() { return UniversalFactoryBlockEntity.altarTargetStack(altarTarget()); }
+    public int recipeWater() { return data.get(52); }
+    public int recipeWaterMax() { return data.get(53); }
+    public FluidStack recipeWaterStack() { return fluidStack(data.get(54), recipeWater()); }
+    public int upgradeTicks() { return data.get(55); }
     public ProcessingStatus processingStatus() {
         int value = data.get(44);
         return ProcessingStatus.values()[Math.min(Math.max(value, 0), ProcessingStatus.values().length - 1)];

@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": ["TCT", "SOS", "TET"],
+  "key": {
+    "T": { "item": "mekanism:ultimate_chemical_tank" },
+    "C": { "item": "mekanism:ultimate_control_circuit" },
+    "S": { "item": "mekanism:steel_casing" },
+    "O": { "item": "bloodmagic:masterbloodorb" },
+    "E": { "item": "mekanism:ultimate_energy_cube" }
+  },
+  "result": { "item": "bloodmekanism:lp_charger" }
+}

@@ -28,7 +28,9 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerData;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.common.MinecraftForge;
@@ -77,8 +79,8 @@ public final class UniversalFactoryBlockEntity extends BaseMachineBlockEntity {
     public static final int CATALYST_SLOT = 9;
     public static final int OUTPUT_START = 10;
     public static final int OUTPUT_COUNT = 9;
-    public static final int SPEED_UPGRADE_SLOT = 19;
-    public static final int ENERGY_UPGRADE_SLOT = 20;
+    public static final int UPGRADE_INPUT_SLOT = 19;
+    public static final int UPGRADE_OUTPUT_SLOT = 20;
     public static final int SLOT_COUNT = 21;
     public static final int ALTAR_TARGET_BUTTON = 8;
     private static final int ALTAR_BUFFER_SLOTS = 5;
@@ -94,6 +96,7 @@ public final class UniversalFactoryBlockEntity extends BaseMachineBlockEntity {
     private final FactoryMode fixedMode;
     private FactoryMode mode = FactoryMode.ALTAR;
     private final FluidTank inputTank;
+    private final FluidTank recipeWaterTank;
     private final FluidTank outputTank;
     private final IGasTank willTank;
     private final net.minecraftforge.items.ItemStackHandler altarBuffer;
@@ -141,6 +144,10 @@ public final class UniversalFactoryBlockEntity extends BaseMachineBlockEntity {
                 case 49 -> (int) Math.min(Integer.MAX_VALUE, willTank.getStored());
                 case 50 -> (int) Math.min(Integer.MAX_VALUE, willTank.getCapacity());
                 case 51 -> altarTarget;
+                case 52 -> recipeWaterTank.getFluidAmount();
+                case 53 -> recipeWaterTank.getCapacity();
+                case 54 -> fluidRegistryId(recipeWaterTank.getFluid());
+                case 55 -> upgradeTicks();
                 default -> {
                     int sideIndex = index - 19;
                     if (sideIndex >= 0 && sideIndex < MachineResource.values().length * RelativeMachineSide.values().length) {
@@ -153,7 +160,7 @@ public final class UniversalFactoryBlockEntity extends BaseMachineBlockEntity {
             };
         }
         @Override public void set(int index, int value) { }
-        @Override public int getCount() { return 52; }
+        @Override public int getCount() { return 56; }
     };
 
     private static int fluidRegistryId(FluidStack stack) {
@@ -170,11 +177,14 @@ public final class UniversalFactoryBlockEntity extends BaseMachineBlockEntity {
     }
 
     private UniversalFactoryBlockEntity(BlockPos pos, BlockState state, FactoryTier tier) {
-        super(ModContent.UNIVERSAL_FACTORY_BLOCK_ENTITY.get(), pos, state, SLOT_COUNT, tier.energyCapacity(), SPEED_UPGRADE_SLOT, ENERGY_UPGRADE_SLOT);
+        super(ModContent.UNIVERSAL_FACTORY_BLOCK_ENTITY.get(), pos, state, SLOT_COUNT, tier.energyCapacity(), UPGRADE_INPUT_SLOT, UPGRADE_OUTPUT_SLOT);
         this.tier = tier;
         this.fixedMode = state.getBlock() instanceof MachineBlock block ? block.fixedMode() : null;
         if (fixedMode != null) this.mode = fixedMode;
         this.inputTank = changedTank(tier.tankCapacity());
+        this.recipeWaterTank = new FluidTank(tier.tankCapacity(), UniversalFactoryBlockEntity::isWater) {
+            @Override protected void onContentsChanged() { UniversalFactoryBlockEntity.this.setChanged(); }
+        };
         this.outputTank = changedTank(tier.tankCapacity());
         this.willTank = ChemicalTankBuilder.GAS.input(tier.tankCapacity(), WillGas::isWill, this::setChanged);
         this.altarBuffer = new net.minecraftforge.items.ItemStackHandler(ALTAR_BUFFER_SLOTS) {
@@ -196,6 +206,7 @@ public final class UniversalFactoryBlockEntity extends BaseMachineBlockEntity {
 
     @Override
     public void serverTick() {
+        tickUpgrades();
         lastEnergyUsed = 0;
         mechanicalLpRate = 0;
         processingStatus = ProcessingStatus.IDLE;
@@ -284,24 +295,30 @@ public final class UniversalFactoryBlockEntity extends BaseMachineBlockEntity {
                 continue;
             }
             int batch = Math.min(tier.batchSize(), input.getCount());
-            int lp = recipe.getSyphon() * batch;
             List<ItemStack> outputs = repeat(recipe.getOutput(), batch);
-            if (!hasLife(lp)) {
-                processingStatus = ProcessingStatus.LIFE_ESSENCE_LOW;
+            while (batch > 0 && !canFit(outputs)) {
+                batch--;
+                outputs = repeat(recipe.getOutput(), batch);
+            }
+            if (batch <= 0) {
+                processingStatus = ProcessingStatus.OUTPUT_FULL;
                 return false;
             }
-            if (!canFit(outputs)) {
-                processingStatus = ProcessingStatus.OUTPUT_FULL;
+            int lp = recipe.getSyphon() * batch;
+            if (!hasLife(lp)) {
+                processingStatus = ProcessingStatus.LIFE_ESSENCE_LOW;
                 return false;
             }
             int duration = Math.max(1, divideRoundUp(recipe.getSyphon(), Math.max(1, recipe.getConsumeRate() * tier.bloodTier())));
             int energyPerTick = Math.max(1, divideRoundUp(lp * 8, duration));
             int inputSlot = slot;
+            int finalBatch = batch;
+            List<ItemStack> finalOutputs = outputs;
             activeInputMask = 1 << slot;
-            return advance(recipe.getId() + ":" + batch, duration, energyPerTick, () -> {
+            return advance(recipe.getId() + ":" + finalBatch, duration, energyPerTick, () -> {
                 inputTank.drain(lp, IFluidHandler.FluidAction.EXECUTE);
-                inventory.extractItem(inputSlot, batch, false);
-                for (ItemStack output : outputs) {
+                inventory.extractItem(inputSlot, finalBatch, false);
+                for (ItemStack output : finalOutputs) {
                     BloodMagicCraftedEvent.Altar event = new BloodMagicCraftedEvent.Altar(output.copy(), input.copyWithCount(1));
                     MinecraftForge.EVENT_BUS.post(event);
                     insertOutput(event.getOutput());
@@ -329,25 +346,30 @@ public final class UniversalFactoryBlockEntity extends BaseMachineBlockEntity {
         }
         int batch = Math.min(tier.batchSize(), work.input().getCount());
         int outputRank = altarTargetRank(recipe.getOutput());
-        int lp = recipe.getSyphon() * batch;
         List<ItemStack> outputs = repeat(recipe.getOutput(), batch);
-        if (!hasLife(lp)) {
-            processingStatus = ProcessingStatus.LIFE_ESSENCE_LOW;
+        while (batch > 0 && (outputRank == altarTarget ? !canFit(outputs) : !canFitAltarBuffer(outputs))) {
+            batch--;
+            outputs = repeat(recipe.getOutput(), batch);
+        }
+        if (batch <= 0) {
+            processingStatus = ProcessingStatus.OUTPUT_FULL;
             return false;
         }
-        if (outputRank == altarTarget ? !canFit(outputs) : !canFitAltarBuffer(outputs)) {
-            processingStatus = ProcessingStatus.OUTPUT_FULL;
+        int lp = recipe.getSyphon() * batch;
+        if (!hasLife(lp)) {
+            processingStatus = ProcessingStatus.LIFE_ESSENCE_LOW;
             return false;
         }
         int duration = Math.max(1, divideRoundUp(recipe.getSyphon(), Math.max(1, recipe.getConsumeRate() * tier.bloodTier())));
         int energyPerTick = Math.max(1, divideRoundUp(lp * 8, duration));
         activeInputMask = 1 << (work.inputSlot() < 0 ? CATALYST_SLOT : work.inputSlot());
         int finalBatch = batch;
+        List<ItemStack> finalOutputs = outputs;
         return advance(recipe.getId() + ":locked:" + batch, duration, energyPerTick, () -> {
             inputTank.drain(lp, IFluidHandler.FluidAction.EXECUTE);
             if (work.bufferSlot() >= 0) altarBuffer.extractItem(work.bufferSlot(), finalBatch, false);
             else inventory.extractItem(work.inputSlot(), finalBatch, false);
-            for (ItemStack output : outputs) {
+            for (ItemStack output : finalOutputs) {
                 BloodMagicCraftedEvent.Altar event = new BloodMagicCraftedEvent.Altar(output.copy(), work.input().copyWithCount(1));
                 MinecraftForge.EVENT_BUS.post(event);
                 if (outputRank == altarTarget) insertOutput(event.getOutput());
@@ -407,22 +429,29 @@ public final class UniversalFactoryBlockEntity extends BaseMachineBlockEntity {
                 return false;
             }
             int batch = plan.batch();
-            int lp = recipe.getSyphon() * batch;
             ItemStack result = recipe.getOutput(plan.recipeInputs());
             List<ItemStack> outputs = repeat(result, batch);
+            while (batch > 0 && !canFit(outputs)) {
+                batch--;
+                outputs = repeat(result, batch);
+            }
+            if (batch <= 0) {
+                processingStatus = ProcessingStatus.OUTPUT_FULL;
+                return false;
+            }
+            int lp = recipe.getSyphon() * batch;
             if (!hasLife(lp)) {
                 processingStatus = ProcessingStatus.LIFE_ESSENCE_LOW;
                 return false;
             }
-            if (!canFit(outputs)) {
-                processingStatus = ProcessingStatus.OUTPUT_FULL;
-                return false;
-            }
             int duration = Math.max(1, divideRoundUp(recipe.getTicks(), tier.bloodTier()));
             activeInputMask = plan.inputMask();
-            return advance(recipe.getId() + ":" + batch, duration, Math.max(40, lp * 4 / duration), () -> {
+            int finalBatch = batch;
+            return advance(recipe.getId() + ":" + finalBatch, duration, Math.max(40, lp * 4 / duration), () -> {
                 inputTank.drain(lp, IFluidHandler.FluidAction.EXECUTE);
-                for (int i = 0; i < batch; i++) {
+                recipeWaterTank.drain(plan.fluidWaterBuckets() * finalBatch * 1_000,
+                      IFluidHandler.FluidAction.EXECUTE);
+                for (int i = 0; i < finalBatch; i++) {
                     BloodMagicCraftedEvent.AlchemyTable event = new BloodMagicCraftedEvent.AlchemyTable(result.copy(), plan.recipeInputs().toArray(ItemStack[]::new));
                     MinecraftForge.EVENT_BUS.post(event);
                     insertOutput(event.getOutput());
@@ -469,6 +498,7 @@ public final class UniversalFactoryBlockEntity extends BaseMachineBlockEntity {
         activeInputMask = plan.inputMask() | 1 << flaskSlot;
         return advance(recipe.getId().toString(), duration, Math.max(40, recipe.getSyphon() * 4 / duration), () -> {
             inputTank.drain(recipe.getSyphon(), IFluidHandler.FluidAction.EXECUTE);
+            recipeWaterTank.drain(plan.fluidWaterBuckets() * 1_000, IFluidHandler.FluidAction.EXECUTE);
             if (output.getItem() instanceof ItemAlchemyFlask outputFlask) outputFlask.resyncEffectInstances(output);
             insertOutput(output);
             inventory.extractItem(finalFlaskSlot, 1, false);
@@ -510,15 +540,16 @@ public final class UniversalFactoryBlockEntity extends BaseMachineBlockEntity {
     }
 
     private boolean tickSoulForge() {
-        List<ItemStack> inputs = nonEmptyInputs();
-        if (inputs.isEmpty()) return false;
-        RecipeTartaricForge recipe = BloodMagicAPI.INSTANCE.getRecipeRegistrar().getTartaricForge(level, inputs);
-        if (recipe == null) return false;
+        if (nonEmptyInputs().isEmpty()) return false;
+        SoulForgeMatch match = findSoulForgeMatch();
+        if (match == null) return false;
+        RecipeTartaricForge recipe = match.recipe();
+        IngredientPlan plan = match.plan();
         EnumDemonWillType willType = findWillType();
         if (willType == null) return false;
         double willAmount = getWill(willType);
         if (willAmount < recipe.getMinimumSouls()) return false;
-        int batch = Math.min(tier.batchSize(), batchForInputs());
+        int batch = plan.batch();
         while (batch > 1 && willAmount - recipe.getSoulDrain() * (batch - 1) < recipe.getMinimumSouls()) batch--;
         List<ItemStack> outputs = repeat(recipe.getOutput(), batch);
         while (batch > 0 && !canFit(outputs)) {
@@ -530,14 +561,14 @@ public final class UniversalFactoryBlockEntity extends BaseMachineBlockEntity {
             return false;
         }
         int finalBatch = batch;
-        activeInputMask = nonEmptyInputMask();
+        activeInputMask = plan.inputMask();
         return advance(recipe.getId() + ":" + batch, Math.max(10, 100 / tier.bloodTier()), 300 * batch, () -> {
             drainWill(willType, recipe.getSoulDrain() * finalBatch);
             for (int i = 0; i < finalBatch; i++) {
-                BloodMagicCraftedEvent.SoulForge event = new BloodMagicCraftedEvent.SoulForge(recipe.getOutput().copy(), inputs.toArray(ItemStack[]::new));
+                BloodMagicCraftedEvent.SoulForge event = new BloodMagicCraftedEvent.SoulForge(recipe.getOutput().copy(), plan.recipeInputs().toArray(ItemStack[]::new));
                 MinecraftForge.EVENT_BUS.post(event);
                 insertOutput(event.getOutput());
-                shrinkAllInputs();
+                consumeSoulForgeInputs(plan);
             }
         });
     }
@@ -601,18 +632,14 @@ public final class UniversalFactoryBlockEntity extends BaseMachineBlockEntity {
         return !stack.isEmpty() && (stack.getFluid() == BloodMagicFluids.LIFE_ESSENCE_FLUID.get() || stack.getFluid().is(BloodMagicTags.LIFE_ESSENCE));
     }
 
+    private static boolean isWater(FluidStack stack) {
+        return !stack.isEmpty() && stack.getFluid().is(FluidTags.WATER);
+    }
+
     private List<ItemStack> nonEmptyInputs() {
         List<ItemStack> inputs = new ArrayList<>();
         for (int slot = 0; slot < INPUT_COUNT; slot++) if (!inventory.getStackInSlot(slot).isEmpty()) inputs.add(inventory.getStackInSlot(slot));
         return inputs;
-    }
-
-    private int nonEmptyInputMask() {
-        int mask = 0;
-        for (int slot = 0; slot < INPUT_COUNT; slot++) {
-            if (!inventory.getStackInSlot(slot).isEmpty()) mask |= 1 << slot;
-        }
-        return mask;
     }
 
     @Nullable
@@ -641,27 +668,40 @@ public final class UniversalFactoryBlockEntity extends BaseMachineBlockEntity {
     }
 
     @Nullable
+    private SoulForgeMatch findSoulForgeMatch() {
+        for (RecipeTartaricForge recipe : level.getRecipeManager().getAllRecipesFor(BloodMagicRecipeType.TARTARICFORGE.get())) {
+            IngredientPlan plan = matchIngredients(recipe.getInput(), -1, tier.batchSize());
+            if (plan != null) return new SoulForgeMatch(recipe, plan);
+        }
+        return null;
+    }
+
+    @Nullable
     private IngredientPlan matchIngredients(List<Ingredient> ingredients, int excludedSlot, int maxBatch) {
         List<Integer> occupiedSlots = new ArrayList<>();
         for (int slot = 0; slot < INPUT_COUNT; slot++) {
             if (slot != excludedSlot && !inventory.getStackInSlot(slot).isEmpty()) occupiedSlots.add(slot);
         }
-        if (ingredients.isEmpty() || occupiedSlots.isEmpty() || occupiedSlots.size() > ingredients.size()) return null;
+        if (ingredients.isEmpty() || occupiedSlots.size() > ingredients.size()) return null;
         for (int batch = Math.max(1, maxBatch); batch >= 1; batch--) {
             int[] usage = new int[INPUT_COUNT];
             int[] assignment = new int[ingredients.size()];
+            int[] fluidWaterBuckets = new int[1];
             Arrays.fill(assignment, -1);
-            if (assignIngredients(ingredients, occupiedSlots, 0, batch, usage, assignment)) {
+            if (assignIngredients(ingredients, occupiedSlots, 0, batch, usage, assignment, fluidWaterBuckets)) {
                 List<ItemStack> recipeInputs = new ArrayList<>(ingredients.size());
-                for (int slot : assignment) recipeInputs.add(inventory.getStackInSlot(slot).copyWithCount(1));
-                return new IngredientPlan(usage, recipeInputs, batch);
+                for (int slot : assignment) {
+                    recipeInputs.add(slot < 0 ? new ItemStack(Items.WATER_BUCKET)
+                          : inventory.getStackInSlot(slot).copyWithCount(1));
+                }
+                return new IngredientPlan(usage, recipeInputs, batch, fluidWaterBuckets[0]);
             }
         }
         return null;
     }
 
     private boolean assignIngredients(List<Ingredient> ingredients, List<Integer> occupiedSlots, int ingredientIndex,
-          int batch, int[] usage, int[] assignment) {
+          int batch, int[] usage, int[] assignment, int[] fluidWaterBuckets) {
         if (ingredientIndex >= ingredients.size()) {
             for (int slot : occupiedSlots) if (usage[slot] == 0) return false;
             return true;
@@ -675,26 +715,33 @@ public final class UniversalFactoryBlockEntity extends BaseMachineBlockEntity {
             if (requiredCount > stack.getCount()) continue;
             usage[slot]++;
             assignment[ingredientIndex] = slot;
-            if (assignIngredients(ingredients, occupiedSlots, ingredientIndex + 1, batch, usage, assignment)) return true;
+            if (assignIngredients(ingredients, occupiedSlots, ingredientIndex + 1, batch, usage, assignment,
+                  fluidWaterBuckets)) return true;
             assignment[ingredientIndex] = -1;
             usage[slot]--;
         }
-        return false;
-    }
-
-    private int batchForInputs() {
-        int batch = tier.batchSize();
-        for (int slot = 0; slot < INPUT_COUNT; slot++) {
-            ItemStack stack = inventory.getStackInSlot(slot);
-            if (!stack.isEmpty() && !(stack.getItem() instanceof IAlchemyItem)) batch = Math.min(batch, stack.getCount());
+        if (ingredient.test(new ItemStack(Items.WATER_BUCKET))
+              && (fluidWaterBuckets[0] + 1) * batch * 1_000 <= recipeWaterTank.getFluidAmount()) {
+            fluidWaterBuckets[0]++;
+            assignment[ingredientIndex] = -2;
+            if (assignIngredients(ingredients, occupiedSlots, ingredientIndex + 1, batch, usage, assignment,
+                  fluidWaterBuckets)) return true;
+            assignment[ingredientIndex] = -1;
+            fluidWaterBuckets[0]--;
         }
-        return Math.max(1, batch);
+        return false;
     }
 
     private void consumeAlchemyInputs(IngredientPlan plan, int excludedSlot) {
         for (int slot = 0; slot < INPUT_COUNT; slot++) {
             if (slot == excludedSlot) continue;
             for (int use = 0; use < plan.perSlot()[slot]; use++) consumeAlchemyInput(slot);
+        }
+    }
+
+    private void consumeSoulForgeInputs(IngredientPlan plan) {
+        for (int slot = 0; slot < INPUT_COUNT; slot++) {
+            if (plan.perSlot()[slot] > 0) inventory.extractItem(slot, plan.perSlot()[slot], false);
         }
     }
 
@@ -718,10 +765,6 @@ public final class UniversalFactoryBlockEntity extends BaseMachineBlockEntity {
             remaining = inventory.insertItem(slot, remaining, false);
         }
         if (!remaining.isEmpty()) insertOutput(remaining);
-    }
-
-    private void shrinkAllInputs() {
-        for (int slot = 0; slot < INPUT_COUNT; slot++) if (!inventory.getStackInSlot(slot).isEmpty()) inventory.extractItem(slot, 1, false);
     }
 
     private void consumeArcTool() {
@@ -833,16 +876,30 @@ public final class UniversalFactoryBlockEntity extends BaseMachineBlockEntity {
     }
 
     @Override protected boolean isItemValid(int slot, ItemStack stack) {
-        if (slot == CATALYST_SLOT && mode == FactoryMode.ALTAR) return isBloodOrb(stack);
+        if (slot == CATALYST_SLOT) {
+            return switch (mode) {
+                case ALTAR -> isBloodOrb(stack);
+                case ALCHEMY_TABLE, ALCHEMY_ARRAY -> false;
+                case SOUL_FORGE -> stack.getItem() instanceof IDemonWillGem || stack.getItem() instanceof IDemonWill;
+                case ARC -> true;
+            };
+        }
         if (slot < INPUT_COUNT && mode == FactoryMode.ALTAR && isBloodOrb(stack)) return false;
         return slot < OUTPUT_START;
     }
     @Override protected boolean canAutomationExtract(int slot) {
-        if (slot >= OUTPUT_START && slot < SPEED_UPGRADE_SLOT) return true;
+        if (slot >= OUTPUT_START && slot < UPGRADE_INPUT_SLOT) return true;
         ItemStack stack = inventory.getStackInSlot(slot);
         return slot == CATALYST_SLOT && stack.getItem() instanceof MechanicalBloodOrbItem orb && orb.isFull(stack);
     }
     @Override protected boolean canAutomationInsert(int slot) { return slot < OUTPUT_START; }
+    @Override protected boolean canAutomationInsert(int slot, ItemStack stack) {
+        if (!canAutomationInsert(slot) || slot >= INPUT_COUNT || !inventory.getStackInSlot(slot).isEmpty()) return canAutomationInsert(slot);
+        for (int inputSlot = 0; inputSlot < INPUT_COUNT; inputSlot++) {
+            if (inputSlot != slot && ItemStack.isSameItemSameTags(inventory.getStackInSlot(inputSlot), stack)) return false;
+        }
+        return true;
+    }
 
     public static boolean isBloodOrb(ItemStack stack) {
         return stack.getItem() instanceof MechanicalBloodOrbItem || stack.getItem() instanceof IBloodOrb;
@@ -904,9 +961,18 @@ public final class UniversalFactoryBlockEntity extends BaseMachineBlockEntity {
         sidedGasCapabilities.values().forEach(LazyOptional::invalidate);
     }
 
+    @Override
+    protected void collectAdditionalDrops(List<ItemStack> drops) {
+        for (int slot = 0; slot < altarBuffer.getSlots(); slot++) {
+            ItemStack stack = altarBuffer.extractItem(slot, Integer.MAX_VALUE, false);
+            if (!stack.isEmpty()) drops.add(stack);
+        }
+    }
+
     @Override protected void saveAdditional(CompoundTag tag) {
         super.saveAdditional(tag);
         tag.put("InputTank", inputTank.writeToNBT(new CompoundTag()));
+        tag.put("RecipeWaterTank", recipeWaterTank.writeToNBT(new CompoundTag()));
         tag.put("OutputTank", outputTank.writeToNBT(new CompoundTag()));
         tag.put("WillTank", willTank.serializeNBT());
         tag.put("AltarBuffer", altarBuffer.serializeNBT());
@@ -920,6 +986,7 @@ public final class UniversalFactoryBlockEntity extends BaseMachineBlockEntity {
     @Override public void load(CompoundTag tag) {
         super.load(tag);
         inputTank.readFromNBT(tag.getCompound("InputTank"));
+        recipeWaterTank.readFromNBT(tag.getCompound("RecipeWaterTank"));
         outputTank.readFromNBT(tag.getCompound("OutputTank"));
         willTank.deserializeNBT(tag.getCompound("WillTank"));
         if (tag.contains("AltarBuffer")) altarBuffer.deserializeNBT(tag.getCompound("AltarBuffer"));
@@ -933,13 +1000,15 @@ public final class UniversalFactoryBlockEntity extends BaseMachineBlockEntity {
     public FactoryTier tier() { return tier; }
     public FactoryMode mode() { return mode; }
     public FluidTank inputTank() { return inputTank; }
+    public FluidTank recipeWaterTank() { return recipeWaterTank; }
     public FluidTank outputTank() { return outputTank; }
     public IGasTank willTank() { return willTank; }
 
     private record AltarWork(RecipeBloodAltar recipe, int inputSlot, int bufferSlot, ItemStack input) { }
     private record AlchemyMatch(RecipeAlchemyTable recipe, IngredientPlan plan) { }
     private record PotionMatch(RecipePotionFlaskBase recipe, IngredientPlan plan) { }
-    private record IngredientPlan(int[] perSlot, List<ItemStack> recipeInputs, int batch) {
+    private record SoulForgeMatch(RecipeTartaricForge recipe, IngredientPlan plan) { }
+    private record IngredientPlan(int[] perSlot, List<ItemStack> recipeInputs, int batch, int fluidWaterBuckets) {
         private int inputMask() {
             int mask = 0;
             for (int slot = 0; slot < perSlot.length; slot++) if (perSlot[slot] > 0) mask |= 1 << slot;
@@ -957,14 +1026,32 @@ public final class UniversalFactoryBlockEntity extends BaseMachineBlockEntity {
             this.side = side;
         }
 
-        @Override public int getTanks() { return 2; }
-        @Override public FluidStack getFluidInTank(int tank) { return tank == 0 ? inputTank.getFluid() : outputTank.getFluid(); }
-        @Override public int getTankCapacity(int tank) { return tank == 0 ? inputTank.getCapacity() : outputTank.getCapacity(); }
+        @Override public int getTanks() { return 3; }
+        @Override public FluidStack getFluidInTank(int tank) {
+            return switch (tank) {
+                case 0 -> inputTank.getFluid();
+                case 1 -> outputTank.getFluid();
+                case 2 -> recipeWaterTank.getFluid();
+                default -> FluidStack.EMPTY;
+            };
+        }
+        @Override public int getTankCapacity(int tank) {
+            return switch (tank) {
+                case 0 -> inputTank.getCapacity();
+                case 1 -> outputTank.getCapacity();
+                case 2 -> recipeWaterTank.getCapacity();
+                default -> 0;
+            };
+        }
         @Override public boolean isFluidValid(int tank, FluidStack stack) {
-            return tank == 0 && allows(side, MachineResource.FLUID, true);
+            if (!allows(side, MachineResource.FLUID, true)) return false;
+            if (tank == 2) return mode == FactoryMode.ALCHEMY_TABLE && isWater(stack);
+            return tank == 0 && !(mode == FactoryMode.ALCHEMY_TABLE && isWater(stack));
         }
         @Override public int fill(FluidStack resource, FluidAction action) {
-            return allows(side, MachineResource.FLUID, true) ? inputTank.fill(resource, action) : 0;
+            if (!allows(side, MachineResource.FLUID, true)) return 0;
+            if (mode == FactoryMode.ALCHEMY_TABLE && isWater(resource)) return recipeWaterTank.fill(resource, action);
+            return inputTank.fill(resource, action);
         }
         @Override public FluidStack drain(FluidStack resource, FluidAction action) {
             return allows(side, MachineResource.FLUID, false) ? outputTank.drain(resource, action) : FluidStack.EMPTY;

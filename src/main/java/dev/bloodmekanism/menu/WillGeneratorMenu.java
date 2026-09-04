@@ -37,13 +37,13 @@ public final class WillGeneratorMenu extends AbstractContainerMenu {
     private WillGeneratorMenu(int id, Inventory playerInventory, WillGeneratorBlockEntity machine, boolean clientSide) {
         super(ModContent.WILL_GENERATOR_MENU.get(), id);
         this.machine = machine;
-        data = clientSide || machine == null ? new SimpleContainerData(39) : machine.data;
-        checkContainerDataCount(data, 39);
+        data = clientSide || machine == null ? new SimpleContainerData(40) : machine.data;
+        checkContainerDataCount(data, 40);
         addDataSlots(data);
         if (machine != null) {
             addSlot(new SlotItemHandler(machine.inventory(), WillGeneratorBlockEntity.INPUT_SLOT, 57, 35));
-            addSlot(new SlotItemHandler(machine.inventory(), WillGeneratorBlockEntity.SPEED_UPGRADE_SLOT, 207, 22));
-            addSlot(new SlotItemHandler(machine.inventory(), WillGeneratorBlockEntity.ENERGY_UPGRADE_SLOT, 207, 48));
+            addSlot(new UpgradeSlot(machine.inventory(), WillGeneratorBlockEntity.UPGRADE_INPUT_SLOT, false));
+            addSlot(new UpgradeSlot(machine.inventory(), WillGeneratorBlockEntity.UPGRADE_OUTPUT_SLOT, true));
         }
         addPlayerInventory(playerInventory, 38, 91);
     }
@@ -69,17 +69,16 @@ public final class WillGeneratorMenu extends AbstractContainerMenu {
         ItemStack copy = original.copy();
         if (index < WillGeneratorBlockEntity.SLOT_COUNT) {
             if (!moveItemStackTo(original, WillGeneratorBlockEntity.SLOT_COUNT, slots.size(), true)) return ItemStack.EMPTY;
-        } else if (original.getItem() instanceof IUpgradeItem upgradeItem && upgradeItem.getUpgradeType(original) == Upgrade.SPEED) {
-            if (!moveItemStackTo(original, WillGeneratorBlockEntity.SPEED_UPGRADE_SLOT, WillGeneratorBlockEntity.SPEED_UPGRADE_SLOT + 1, false)) return ItemStack.EMPTY;
-        } else if (original.getItem() instanceof IUpgradeItem upgradeItem && upgradeItem.getUpgradeType(original) == Upgrade.ENERGY) {
-            if (!moveItemStackTo(original, WillGeneratorBlockEntity.ENERGY_UPGRADE_SLOT, WillGeneratorBlockEntity.ENERGY_UPGRADE_SLOT + 1, false)) return ItemStack.EMPTY;
+        } else if (original.getItem() instanceof IUpgradeItem upgradeItem
+              && (upgradeItem.getUpgradeType(original) == Upgrade.SPEED || upgradeItem.getUpgradeType(original) == Upgrade.ENERGY)) {
+            if (!moveItemStackTo(original, WillGeneratorBlockEntity.UPGRADE_INPUT_SLOT, WillGeneratorBlockEntity.UPGRADE_INPUT_SLOT + 1, false)) return ItemStack.EMPTY;
         } else if (!moveItemStackTo(original, WillGeneratorBlockEntity.INPUT_SLOT, WillGeneratorBlockEntity.INPUT_SLOT + 1, false)) return ItemStack.EMPTY;
         if (original.isEmpty()) slot.set(ItemStack.EMPTY); else slot.setChanged();
         return copy;
     }
 
     @Override public boolean stillValid(Player player) {
-        return machine != null && player.distanceToSqr(machine.getBlockPos().getX() + 0.5, machine.getBlockPos().getY() + 0.5, machine.getBlockPos().getZ() + 0.5) <= 64;
+        return machine != null && machine.isMenuValid(player);
     }
 
     public int energy() { return data.get(0); }
@@ -101,6 +100,7 @@ public final class WillGeneratorMenu extends AbstractContainerMenu {
         return encodedId > types.length ? GasStack.EMPTY : WillGas.stack(types[encodedId - 1], amount);
     }
     public int gasCapacity() { return data.get(38); }
+    public int upgradeTicks() { return data.get(39); }
 
     public ConnectionMode sideMode(MachineResource resource, RelativeMachineSide side) {
         int index = 11 + resource.ordinal() * RelativeMachineSide.values().length + side.ordinal();

@@ -34,6 +34,11 @@ public final class MachineBlockItem extends BlockItem {
             tooltip.add(Component.translatable("tooltip.bloodmekanism.will_generator.2").withStyle(ChatFormatting.DARK_GRAY));
             return;
         }
+        if (block.kind() == MachineBlock.Kind.LP_CHARGER) {
+            tooltip.add(Component.translatable("tooltip.bloodmekanism.lp_charger.1").withStyle(ChatFormatting.GRAY));
+            tooltip.add(Component.translatable("tooltip.bloodmekanism.lp_charger.2").withStyle(ChatFormatting.DARK_GRAY));
+            return;
+        }
         tooltip.add(Component.translatable("tooltip.bloodmekanism." + modeKey() + ".1").withStyle(ChatFormatting.GRAY));
         if (mode == FactoryMode.ALTAR) {
             tooltip.add(Component.translatable("tooltip.bloodmekanism.altar.2", tier.bloodTier(), tier.batchSize()).withStyle(ChatFormatting.DARK_GRAY));

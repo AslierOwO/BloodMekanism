@@ -1,5 +1,5 @@
 modLoader="javafml"
-loaderVersion="[47,)"
+loaderVersion="[47,48)"
 license="MIT"
 
 [[mods]]
@@ -12,7 +12,7 @@ description='''Industrial, fully automatable Blood Magic processing powered by M
 [[dependencies.${mod_id}]]
 modId="forge"
 mandatory=true
-versionRange="[${forge_version},)"
+versionRange="[${forge_version}]"
 ordering="NONE"
 side="BOTH"
 
@@ -26,13 +26,13 @@ side="BOTH"
 [[dependencies.${mod_id}]]
 modId="mekanism"
 mandatory=true
-versionRange="[10.4,)"
+versionRange="[10.4.16]"
 ordering="AFTER"
 side="BOTH"
 
 [[dependencies.${mod_id}]]
 modId="bloodmagic"
 mandatory=true
-versionRange="[3.3,)"
+versionRange="[3.3.8-50]"
 ordering="AFTER"
 side="BOTH"

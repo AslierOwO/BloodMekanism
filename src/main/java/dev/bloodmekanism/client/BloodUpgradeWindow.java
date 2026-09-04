@@ -12,11 +12,14 @@ import mekanism.client.gui.element.GuiInnerScreen;
 import mekanism.client.gui.element.button.DigitalButton;
 import mekanism.client.gui.element.button.MekanismButton;
 import mekanism.client.gui.element.custom.GuiSupportedUpgrades;
+import mekanism.client.gui.element.progress.GuiProgress;
+import mekanism.client.gui.element.progress.ProgressType;
 import mekanism.client.gui.element.window.GuiWindow;
 import mekanism.common.MekanismLang;
 import mekanism.common.inventory.container.SelectedWindowData.WindowType;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.world.inventory.Slot;
 
 final class BloodUpgradeWindow extends GuiWindow {
     private final Map<Upgrade, WrappedTextRenderer> typeRenderers = new EnumMap<>(Upgrade.class);
@@ -25,13 +28,23 @@ final class BloodUpgradeWindow extends GuiWindow {
     private final MekanismButton removeButton;
     private final IntConsumer clickHandler;
 
-    BloodUpgradeWindow(IGuiWrapper gui, int x, int y, IntSupplier speedCount, IntSupplier energyCount, IntConsumer clickHandler) {
+    BloodUpgradeWindow(IGuiWrapper gui, int x, int y, IntSupplier speedCount, IntSupplier energyCount,
+          IntSupplier upgradeTicks, IntConsumer clickHandler, int inputIndex, int outputIndex) {
         super(gui, x, y, 156, 76 + 12 * GuiSupportedUpgrades.calculateNeededRows(), WindowType.UPGRADE);
         this.clickHandler = clickHandler;
         interactionStrategy = InteractionStrategy.ALL;
         selection = addChild(new BloodUpgradeSelection(gui, relativeX + 6, relativeY + 18, speedCount, energyCount));
         addChild(new GuiSupportedUpgrades(gui, relativeX + 6, relativeY + 68, Set.of(Upgrade.SPEED, Upgrade.ENERGY)));
         addChild(new GuiInnerScreen(gui, relativeX + 72, relativeY + 18, 59, 50));
+        addChild(new GuiProgress(() -> upgradeTicks.getAsInt() / (double) BaseMachineBlockEntity.UPGRADE_TICKS_REQUIRED,
+              ProgressType.INSTALLING, gui, relativeX + 134, relativeY + 37));
+        addChild(new GuiProgress(() -> 0, ProgressType.UNINSTALLING, gui, relativeX + 134, relativeY + 59));
+        if (gui instanceof mekanism.client.gui.GuiMekanism<?> screen) {
+            Slot input = screen.getMenu().slots.get(inputIndex);
+            Slot output = screen.getMenu().slots.get(outputIndex);
+            addChild(new BloodGuiVirtualSlot(gui, relativeX + 133, relativeY + 18, input));
+            addChild(new BloodGuiVirtualSlot(gui, relativeX + 133, relativeY + 73, output));
+        }
         removeButton = addChild(new DigitalButton(gui, relativeX + 73, relativeY + 54, 56, 12,
               MekanismLang.UPGRADE_UNINSTALL, this::removeSelected, getOnHover(MekanismLang.UPGRADE_UNINSTALL_TOOLTIP)));
         removeButton.active = false;

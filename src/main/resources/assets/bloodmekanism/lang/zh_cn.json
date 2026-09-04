@@ -60,6 +60,7 @@
   "gui.bloodmekanism.will_amount": "Will：%s / %s",
   "gui.bloodmekanism.fluid_input": "流体输入",
   "gui.bloodmekanism.fluid_output": "流体输出",
+  "gui.bloodmekanism.recipe_water": "水",
   "gui.bloodmekanism.item_input": "原料",
   "gui.bloodmekanism.item_inputs": "物品输入",
   "gui.bloodmekanism.item_outputs": "产物",
@@ -123,11 +124,21 @@
   "tooltip.bloodmekanism.altar.1": "物品 + 生命源质 + FE -> 血之祭坛配方产物",
   "tooltip.bloodmekanism.altar.2": "支持 1-%s 级祭坛配方；每批最多 %s 次",
   "tooltip.bloodmekanism.alchemy.1": "九个输入槽放炼金桌或药剂瓶配方原料",
-  "tooltip.bloodmekanism.alchemy.2": "输入生命源质和 FE；每批最多 %s 次",
+  "tooltip.bloodmekanism.alchemy.2": "输入生命源质、用于替代水桶原料的水和 FE；每批最多 %s 次",
   "tooltip.bloodmekanism.array.1": "九个输入槽放炼金阵基底与催化物",
   "tooltip.bloodmekanism.array.2": "仅消耗 FE；每批最多 %s 次",
   "tooltip.bloodmekanism.soul_forge.1": "输入原料并通过加压管道输入恶魔意志气体",
   "tooltip.bloodmekanism.soul_forge.2": "也兼容媒介槽中的原版意志宝石；每批最多 %s 次",
   "tooltip.bloodmekanism.arc.1": "输入槽放原料，媒介槽放 ARC 工具，可接入所需流体",
-  "tooltip.bloodmekanism.arc.2": "物品和流体产物均可自动输出；每批最多 %s 次"
+  "tooltip.bloodmekanism.arc.2": "物品和流体产物均可自动输出；每批最多 %s 次",
+  "block.bloodmekanism.lp_charger": "瞬时 LP 充能机",
+  "gui.bloodmekanism.orb_input": "宝珠",
+  "gui.bloodmekanism.orb_output": "已满",
+  "gui.bloodmekanism.orb_lp": "LP：%s / %s",
+  "status.bloodmekanism.orb_unbound": "请先将气血宝珠绑定至玩家",
+  "tooltip.bloodmekanism.lp_charger.1": "一个 tick 内充满机械宝珠与已绑定的原版气血宝珠",
+  "tooltip.bloodmekanism.lp_charger.2": "消耗现有生命源质，每 1 LP 消耗 1 FE"
+  ,"jei.bloodmekanism.blood_generator": "血液发生机"
+  ,"jei.bloodmekanism.energy": "能量：%s FE"
+  ,"jei.bloodmekanism.time": "时间：%s 刻"
 }

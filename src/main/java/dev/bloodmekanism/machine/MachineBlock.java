@@ -2,6 +2,7 @@ package dev.bloodmekanism.machine;
 
 import dev.bloodmekanism.machine.blockentity.BaseMachineBlockEntity;
 import dev.bloodmekanism.machine.blockentity.HemogenicBlockEntity;
+import dev.bloodmekanism.machine.blockentity.LpChargerBlockEntity;
 import dev.bloodmekanism.machine.blockentity.UniversalFactoryBlockEntity;
 import dev.bloodmekanism.machine.blockentity.WillGeneratorBlockEntity;
 import net.minecraft.core.BlockPos;
@@ -72,6 +73,7 @@ public final class MachineBlock extends BaseEntityBlock {
         return switch (kind) {
             case HEMOGENIC -> new HemogenicBlockEntity(pos, state);
             case WILL_GENERATOR -> new WillGeneratorBlockEntity(pos, state);
+            case LP_CHARGER -> new LpChargerBlockEntity(pos, state);
             case UNIVERSAL_FACTORY -> new UniversalFactoryBlockEntity(pos, state);
         };
     }
@@ -102,7 +104,7 @@ public final class MachineBlock extends BaseEntityBlock {
     @Override
     public void onRemove(BlockState oldState, Level level, BlockPos pos, BlockState newState, boolean moving) {
         if (!oldState.is(newState.getBlock()) && level.getBlockEntity(pos) instanceof BaseMachineBlockEntity machine) {
-            Containers.dropContents(level, pos, machine.asContainer());
+            Containers.dropContents(level, pos, machine.removeContentsForDrop());
             level.updateNeighbourForOutputSignal(pos, this);
         }
         super.onRemove(oldState, level, pos, newState, moving);
@@ -116,5 +118,5 @@ public final class MachineBlock extends BaseEntityBlock {
     @Override
     public boolean hasAnalogOutputSignal(BlockState state) { return true; }
 
-    public enum Kind { HEMOGENIC, WILL_GENERATOR, UNIVERSAL_FACTORY }
+    public enum Kind { HEMOGENIC, WILL_GENERATOR, LP_CHARGER, UNIVERSAL_FACTORY }
 }

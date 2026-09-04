@@ -7,6 +7,7 @@ import dev.bloodmekanism.machine.RedstoneMode;
 import dev.bloodmekanism.machine.RelativeMachineSide;
 import mekanism.api.Upgrade;
 import mekanism.common.item.interfaces.IUpgradeItem;
+import mekanism.common.util.UpgradeUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.NonNullList;
@@ -29,7 +30,9 @@ import net.minecraftforge.items.ItemStackHandler;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 
 public abstract class BaseMachineBlockEntity extends BlockEntity implements net.minecraft.world.MenuProvider {
@@ -38,6 +41,7 @@ public abstract class BaseMachineBlockEntity extends BlockEntity implements net.
     public static final int CLEAR_SIDES_BUTTON_BASE = 300;
     public static final int UPGRADE_BUTTON_BASE = 4;
     public static final int UPGRADE_BUTTON_END = 8;
+    public static final int UPGRADE_TICKS_REQUIRED = 20;
 
     protected final ManagedEnergyStorage energy;
     protected final LazyOptional<IEnergyStorage> energyCapability;
@@ -51,6 +55,9 @@ public abstract class BaseMachineBlockEntity extends BlockEntity implements net.
     protected int lastEnergyUsed;
 
     private final int baseEnergyCapacity;
+    private int installedSpeedUpgrades;
+    private int installedEnergyUpgrades;
+    private int upgradeTicks;
     private final Map<Direction, LazyOptional<IItemHandler>> sidedItemCapabilities = new EnumMap<>(Direction.class);
     private final Map<Direction, LazyOptional<IEnergyStorage>> sidedEnergyCapabilities = new EnumMap<>(Direction.class);
     private final Map<MachineResource, EnumMap<RelativeMachineSide, ConnectionMode>> sideConfiguration = new EnumMap<>(MachineResource.class);
@@ -78,7 +85,6 @@ public abstract class BaseMachineBlockEntity extends BlockEntity implements net.
 
             @Override
             protected void onContentsChanged(int slot) {
-                if (BaseMachineBlockEntity.this.isUpgradeSlot(slot)) refreshEnergyCapacity();
                 BaseMachineBlockEntity.this.setChanged();
             }
         };
@@ -103,18 +109,49 @@ public abstract class BaseMachineBlockEntity extends BlockEntity implements net.
     protected abstract boolean canAutomationExtract(int slot);
     protected abstract boolean canAutomationInsert(int slot);
 
+    protected boolean canAutomationInsert(int slot, ItemStack stack) {
+        return canAutomationInsert(slot);
+    }
+
     private boolean isSlotItemValid(int slot, ItemStack stack) {
-        if (slot == speedUpgradeSlot) return isUpgrade(stack, Upgrade.SPEED);
-        if (slot == energyUpgradeSlot) return isUpgrade(stack, Upgrade.ENERGY);
+        if (slot == speedUpgradeSlot) return upgradeType(stack) != null;
+        if (slot == energyUpgradeSlot) return false;
         return isItemValid(slot, stack);
     }
 
     private static boolean isUpgrade(ItemStack stack, Upgrade expected) {
-        return stack.getItem() instanceof IUpgradeItem upgradeItem && upgradeItem.getUpgradeType(stack) == expected;
+        return upgradeType(stack) == expected;
+    }
+
+    @Nullable
+    private static Upgrade upgradeType(ItemStack stack) {
+        if (!(stack.getItem() instanceof IUpgradeItem upgradeItem)) return null;
+        Upgrade upgrade = upgradeItem.getUpgradeType(stack);
+        return upgrade == Upgrade.SPEED || upgrade == Upgrade.ENERGY ? upgrade : null;
     }
 
     protected boolean isUpgradeSlot(int slot) {
         return slot == speedUpgradeSlot || slot == energyUpgradeSlot;
+    }
+
+    /** Matches Mekanism's TileComponentUpgrade installation lifecycle. */
+    protected final void tickUpgrades() {
+        if (speedUpgradeSlot < 0 || energyUpgradeSlot < 0) return;
+        ItemStack stack = inventory.getStackInSlot(speedUpgradeSlot);
+        Upgrade upgrade = upgradeType(stack);
+        if (upgrade != null && upgradeCount(upgrade) < upgrade.getMax()) {
+            if (upgradeTicks < UPGRADE_TICKS_REQUIRED) {
+                upgradeTicks++;
+                setChanged();
+                return;
+            }
+            int added = addUpgrades(upgrade, stack.getCount());
+            if (added > 0) inventory.extractItem(speedUpgradeSlot, added, false);
+        }
+        if (upgradeTicks != 0) {
+            upgradeTicks = 0;
+            setChanged();
+        }
     }
 
     protected IItemHandler createAutomationItemHandler(@Nullable Direction side) {
@@ -122,14 +159,14 @@ public abstract class BaseMachineBlockEntity extends BlockEntity implements net.
             @Override public int getSlots() { return inventory.getSlots(); }
             @Override public ItemStack getStackInSlot(int slot) { return inventory.getStackInSlot(slot); }
             @Override public ItemStack insertItem(int slot, ItemStack stack, boolean simulate) {
-                return allows(side, MachineResource.ITEM, true) && canAutomationInsert(slot) ? inventory.insertItem(slot, stack, simulate) : stack;
+                return allows(side, MachineResource.ITEM, true) && canAutomationInsert(slot, stack) ? inventory.insertItem(slot, stack, simulate) : stack;
             }
             @Override public ItemStack extractItem(int slot, int amount, boolean simulate) {
                 return allows(side, MachineResource.ITEM, false) && canAutomationExtract(slot) ? inventory.extractItem(slot, amount, simulate) : ItemStack.EMPTY;
             }
             @Override public int getSlotLimit(int slot) { return inventory.getSlotLimit(slot); }
             @Override public boolean isItemValid(int slot, ItemStack stack) {
-                return allows(side, MachineResource.ITEM, true) && canAutomationInsert(slot) && inventory.isItemValid(slot, stack);
+                return allows(side, MachineResource.ITEM, true) && canAutomationInsert(slot, stack) && inventory.isItemValid(slot, stack);
             }
         };
     }
@@ -239,11 +276,7 @@ public abstract class BaseMachineBlockEntity extends BlockEntity implements net.
         if (id < UPGRADE_BUTTON_BASE || id >= UPGRADE_BUTTON_END) return;
         Upgrade upgrade = id < UPGRADE_BUTTON_BASE + 2 ? Upgrade.SPEED : Upgrade.ENERGY;
         boolean removeAll = (id - UPGRADE_BUTTON_BASE) % 2 == 1;
-        int slot = upgrade == Upgrade.SPEED ? speedUpgradeSlot : energyUpgradeSlot;
-        ItemStack installed = inventory.getStackInSlot(slot);
-        if (!isUpgrade(installed, upgrade)) return;
-        ItemStack removed = inventory.extractItem(slot, removeAll ? installed.getCount() : 1, false);
-        if (!removed.isEmpty() && !player.getInventory().add(removed)) player.drop(removed, false);
+        removeUpgrades(upgrade, removeAll);
     }
 
     public static int removeUpgradeButtonId(Upgrade upgrade, boolean removeAll) {
@@ -272,6 +305,9 @@ public abstract class BaseMachineBlockEntity extends BlockEntity implements net.
         tag.putBoolean("AutoInput", false);
         tag.putBoolean("AutoOutput", autoOutput);
         tag.putInt("RedstoneMode", redstoneMode.ordinal());
+        tag.putInt("InstalledSpeedUpgrades", installedSpeedUpgrades);
+        tag.putInt("InstalledEnergyUpgrades", installedEnergyUpgrades);
+        tag.putInt("UpgradeTicks", upgradeTicks);
         CompoundTag configurationTag = new CompoundTag();
         for (MachineResource resource : MachineResource.values()) {
             CompoundTag resourceTag = new CompoundTag();
@@ -300,6 +336,11 @@ public abstract class BaseMachineBlockEntity extends BlockEntity implements net.
                 inventory.setStackInSlot(slot, savedInventory.getStackInSlot(slot));
             }
         }
+        boolean hasInstalledUpgradeData = tag.contains("InstalledSpeedUpgrades") || tag.contains("InstalledEnergyUpgrades");
+        installedSpeedUpgrades = clampUpgradeCount(tag.getInt("InstalledSpeedUpgrades"), Upgrade.SPEED);
+        installedEnergyUpgrades = clampUpgradeCount(tag.getInt("InstalledEnergyUpgrades"), Upgrade.ENERGY);
+        upgradeTicks = Math.min(Math.max(tag.getInt("UpgradeTicks"), 0), UPGRADE_TICKS_REQUIRED);
+        if (!hasInstalledUpgradeData) migrateLegacyUpgradeSlots();
         refreshEnergyCapacity();
         energy.setStored(tag.getInt("Energy"));
         autoOutput = tag.getBoolean("AutoOutput");
@@ -346,14 +387,68 @@ public abstract class BaseMachineBlockEntity extends BlockEntity implements net.
         energy.setCapacity(capacity, Math.max(1_000, capacity / 20));
     }
 
-    public int speedUpgradeCount() { return upgradeCount(speedUpgradeSlot, Upgrade.SPEED); }
-    public int energyUpgradeCount() { return upgradeCount(energyUpgradeSlot, Upgrade.ENERGY); }
+    public int speedUpgradeCount() { return installedSpeedUpgrades; }
+    public int energyUpgradeCount() { return installedEnergyUpgrades; }
+    public int upgradeTicks() { return upgradeTicks; }
+    public boolean supportsUpgrades() { return speedUpgradeSlot >= 0 && energyUpgradeSlot >= 0; }
     public int lastEnergyUsed() { return lastEnergyUsed; }
 
-    private int upgradeCount(int slot, Upgrade expected) {
-        if (slot < 0 || slot >= inventory.getSlots()) return 0;
-        ItemStack stack = inventory.getStackInSlot(slot);
-        return isUpgrade(stack, expected) ? Math.min(expected.getMax(), stack.getCount()) : 0;
+    public int addUpgrades(Upgrade upgrade, int maxAvailable) {
+        if ((upgrade != Upgrade.SPEED && upgrade != Upgrade.ENERGY) || maxAvailable <= 0 || speedUpgradeSlot < 0) return 0;
+        int installed = upgradeCount(upgrade);
+        int added = Math.min(upgrade.getMax() - installed, maxAvailable);
+        if (added <= 0) return 0;
+        setUpgradeCount(upgrade, installed + added);
+        refreshEnergyCapacity();
+        setChanged();
+        return added;
+    }
+
+    private void removeUpgrades(Upgrade upgrade, boolean removeAll) {
+        if (energyUpgradeSlot < 0) return;
+        int installed = upgradeCount(upgrade);
+        if (installed <= 0) return;
+        ItemStack output = inventory.getStackInSlot(energyUpgradeSlot);
+        ItemStack upgradeStack = UpgradeUtils.getStack(upgrade);
+        int space = output.isEmpty() ? upgrade.getMax()
+              : ItemStack.isSameItemSameTags(output, upgradeStack) ? upgrade.getMax() - output.getCount() : 0;
+        int removed = Math.min(removeAll ? installed : 1, space);
+        if (removed <= 0) return;
+        setUpgradeCount(upgrade, installed - removed);
+        if (output.isEmpty()) {
+            inventory.setStackInSlot(energyUpgradeSlot, UpgradeUtils.getStack(upgrade, removed));
+        } else {
+            ItemStack grown = output.copy();
+            grown.grow(removed);
+            inventory.setStackInSlot(energyUpgradeSlot, grown);
+        }
+        refreshEnergyCapacity();
+        setChanged();
+    }
+
+    private int upgradeCount(Upgrade upgrade) {
+        return upgrade == Upgrade.SPEED ? installedSpeedUpgrades : installedEnergyUpgrades;
+    }
+
+    private void setUpgradeCount(Upgrade upgrade, int count) {
+        int clamped = clampUpgradeCount(count, upgrade);
+        if (upgrade == Upgrade.SPEED) installedSpeedUpgrades = clamped;
+        else if (upgrade == Upgrade.ENERGY) installedEnergyUpgrades = clamped;
+    }
+
+    private static int clampUpgradeCount(int count, Upgrade upgrade) {
+        return Math.min(Math.max(count, 0), upgrade.getMax());
+    }
+
+    private void migrateLegacyUpgradeSlots() {
+        if (speedUpgradeSlot < 0 || energyUpgradeSlot < 0) return;
+        for (int slot : new int[]{speedUpgradeSlot, energyUpgradeSlot}) {
+            ItemStack stack = inventory.getStackInSlot(slot);
+            Upgrade upgrade = upgradeType(stack);
+            if (upgrade != null) setUpgradeCount(upgrade, upgradeCount(upgrade) + stack.getCount());
+            inventory.setStackInSlot(slot, ItemStack.EMPTY);
+        }
+        upgradeTicks = 0;
     }
 
     protected int upgradedDuration(int baseDuration) {
@@ -378,16 +473,35 @@ public abstract class BaseMachineBlockEntity extends BlockEntity implements net.
         return sideConfiguration.get(resource).get(side);
     }
 
+    public boolean isMenuValid(Player player) {
+        return !isRemoved() && level != null && player.level() == level
+              && level.getBlockEntity(worldPosition) == this
+              && player.distanceToSqr(worldPosition.getX() + 0.5, worldPosition.getY() + 0.5,
+              worldPosition.getZ() + 0.5) <= 64;
+    }
+
     public ItemStackHandler inventory() { return inventory; }
     public ManagedEnergyStorage energy() { return energy; }
     public boolean autoOutput() { return autoOutput; }
     public RedstoneMode redstoneMode() { return redstoneMode; }
 
-    public Container asContainer() {
-        SimpleContainer container = new SimpleContainer(inventory.getSlots());
-        for (int i = 0; i < inventory.getSlots(); i++) container.setItem(i, inventory.getStackInSlot(i).copy());
-        return container;
+    public Container removeContentsForDrop() {
+        List<ItemStack> drops = new ArrayList<>();
+        for (int slot = 0; slot < inventory.getSlots(); slot++) {
+            ItemStack stack = inventory.extractItem(slot, Integer.MAX_VALUE, false);
+            if (!stack.isEmpty()) drops.add(stack);
+        }
+        if (supportsUpgrades()) {
+            if (installedSpeedUpgrades > 0) drops.add(UpgradeUtils.getStack(Upgrade.SPEED, installedSpeedUpgrades));
+            if (installedEnergyUpgrades > 0) drops.add(UpgradeUtils.getStack(Upgrade.ENERGY, installedEnergyUpgrades));
+            installedSpeedUpgrades = 0;
+            installedEnergyUpgrades = 0;
+        }
+        collectAdditionalDrops(drops);
+        return new SimpleContainer(drops.toArray(ItemStack[]::new));
     }
+
+    protected void collectAdditionalDrops(List<ItemStack> drops) { }
 
     public int comparatorLevel() {
         NonNullList<ItemStack> stacks = NonNullList.withSize(inventory.getSlots(), ItemStack.EMPTY);

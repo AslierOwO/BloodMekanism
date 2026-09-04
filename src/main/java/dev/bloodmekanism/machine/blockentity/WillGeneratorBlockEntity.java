@@ -43,8 +43,8 @@ import wayoftime.bloodmagic.common.tags.BloodMagicTags;
 
 public final class WillGeneratorBlockEntity extends BaseMachineBlockEntity {
     public static final int INPUT_SLOT = 0;
-    public static final int SPEED_UPGRADE_SLOT = 1;
-    public static final int ENERGY_UPGRADE_SLOT = 2;
+    public static final int UPGRADE_INPUT_SLOT = 1;
+    public static final int UPGRADE_OUTPUT_SLOT = 2;
     public static final int SLOT_COUNT = 3;
     public static final int FLUID_CAPACITY = 32_000;
     public static final int GAS_CAPACITY = 64_000;
@@ -84,6 +84,7 @@ public final class WillGeneratorBlockEntity extends BaseMachineBlockEntity {
                 case 36 -> gasRegistryId();
                 case 37 -> (int) willTank.getStored();
                 case 38 -> (int) willTank.getCapacity();
+                case 39 -> upgradeTicks();
                 default -> {
                     int sideIndex = index - 11;
                     if (sideIndex >= 0 && sideIndex < MachineResource.values().length * RelativeMachineSide.values().length) {
@@ -97,11 +98,11 @@ public final class WillGeneratorBlockEntity extends BaseMachineBlockEntity {
         }
 
         @Override public void set(int index, int value) { }
-        @Override public int getCount() { return 39; }
+        @Override public int getCount() { return 40; }
     };
 
     public WillGeneratorBlockEntity(BlockPos pos, BlockState state) {
-        super(ModContent.WILL_GENERATOR_BLOCK_ENTITY.get(), pos, state, SLOT_COUNT, 400_000, SPEED_UPGRADE_SLOT, ENERGY_UPGRADE_SLOT);
+        super(ModContent.WILL_GENERATOR_BLOCK_ENTITY.get(), pos, state, SLOT_COUNT, 400_000, UPGRADE_INPUT_SLOT, UPGRADE_OUTPUT_SLOT);
         for (Direction direction : Direction.values()) {
             sidedFluidCapabilities.put(direction, LazyOptional.of(() -> new GeneratorFluidHandler(direction)));
             sidedGasCapabilities.put(direction, LazyOptional.of(() -> new GeneratorGasHandler(direction)));
@@ -110,6 +111,7 @@ public final class WillGeneratorBlockEntity extends BaseMachineBlockEntity {
 
     @Override
     public void serverTick() {
+        tickUpgrades();
         lastEnergyUsed = 0;
         transferItems();
         transferGas();

@@ -34,13 +34,13 @@ public final class HemogenicMenu extends AbstractContainerMenu {
     private HemogenicMenu(int id, Inventory playerInventory, HemogenicBlockEntity machine, boolean clientSide) {
         super(ModContent.HEMOGENIC_MENU.get(), id);
         this.machine = machine;
-        this.data = clientSide || machine == null ? new SimpleContainerData(36) : machine.data;
-        checkContainerDataCount(data, 36);
+        this.data = clientSide || machine == null ? new SimpleContainerData(37) : machine.data;
+        checkContainerDataCount(data, 37);
         addDataSlots(data);
         if (machine != null) {
             addSlot(new SlotItemHandler(machine.inventory(), HemogenicBlockEntity.INPUT_SLOT, 57, 35));
-            addSlot(new SlotItemHandler(machine.inventory(), HemogenicBlockEntity.SPEED_UPGRADE_SLOT, 207, 22));
-            addSlot(new SlotItemHandler(machine.inventory(), HemogenicBlockEntity.ENERGY_UPGRADE_SLOT, 207, 48));
+            addSlot(new UpgradeSlot(machine.inventory(), HemogenicBlockEntity.UPGRADE_INPUT_SLOT, false));
+            addSlot(new UpgradeSlot(machine.inventory(), HemogenicBlockEntity.UPGRADE_OUTPUT_SLOT, true));
         }
         addPlayerInventory(playerInventory, 38, 91);
     }
@@ -66,17 +66,16 @@ public final class HemogenicMenu extends AbstractContainerMenu {
         ItemStack copy = original.copy();
         if (index < HemogenicBlockEntity.SLOT_COUNT) {
             if (!moveItemStackTo(original, HemogenicBlockEntity.SLOT_COUNT, slots.size(), true)) return ItemStack.EMPTY;
-        } else if (original.getItem() instanceof IUpgradeItem upgradeItem && upgradeItem.getUpgradeType(original) == Upgrade.SPEED) {
-            if (!moveItemStackTo(original, HemogenicBlockEntity.SPEED_UPGRADE_SLOT, HemogenicBlockEntity.SPEED_UPGRADE_SLOT + 1, false)) return ItemStack.EMPTY;
-        } else if (original.getItem() instanceof IUpgradeItem upgradeItem && upgradeItem.getUpgradeType(original) == Upgrade.ENERGY) {
-            if (!moveItemStackTo(original, HemogenicBlockEntity.ENERGY_UPGRADE_SLOT, HemogenicBlockEntity.ENERGY_UPGRADE_SLOT + 1, false)) return ItemStack.EMPTY;
+        } else if (original.getItem() instanceof IUpgradeItem upgradeItem
+              && (upgradeItem.getUpgradeType(original) == Upgrade.SPEED || upgradeItem.getUpgradeType(original) == Upgrade.ENERGY)) {
+            if (!moveItemStackTo(original, HemogenicBlockEntity.UPGRADE_INPUT_SLOT, HemogenicBlockEntity.UPGRADE_INPUT_SLOT + 1, false)) return ItemStack.EMPTY;
         } else if (!moveItemStackTo(original, HemogenicBlockEntity.INPUT_SLOT, HemogenicBlockEntity.INPUT_SLOT + 1, false)) return ItemStack.EMPTY;
         if (original.isEmpty()) slot.set(ItemStack.EMPTY); else slot.setChanged();
         return copy;
     }
 
     @Override public boolean stillValid(Player player) {
-        return machine != null && player.distanceToSqr(machine.getBlockPos().getX() + 0.5, machine.getBlockPos().getY() + 0.5, machine.getBlockPos().getZ() + 0.5) <= 64;
+        return machine != null && machine.isMenuValid(player);
     }
 
     public int energy() { return data.get(0); }
@@ -90,6 +89,7 @@ public final class HemogenicMenu extends AbstractContainerMenu {
     public int speedUpgrades() { return data.get(9); }
     public int energyUpgrades() { return data.get(10); }
     public int lastEnergyUsed() { return data.get(35); }
+    public int upgradeTicks() { return data.get(36); }
 
     public ConnectionMode sideMode(MachineResource resource, RelativeMachineSide side) {
         int index = 11 + resource.ordinal() * RelativeMachineSide.values().length + side.ordinal();

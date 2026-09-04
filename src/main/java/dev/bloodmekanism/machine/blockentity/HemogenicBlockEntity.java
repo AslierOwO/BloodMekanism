@@ -34,8 +34,8 @@ import java.util.Map;
 public final class HemogenicBlockEntity extends BaseMachineBlockEntity {
     public static final int TANK_CAPACITY = 32_000;
     public static final int INPUT_SLOT = 0;
-    public static final int SPEED_UPGRADE_SLOT = 1;
-    public static final int ENERGY_UPGRADE_SLOT = 2;
+    public static final int UPGRADE_INPUT_SLOT = 1;
+    public static final int UPGRADE_OUTPUT_SLOT = 2;
     public static final int SLOT_COUNT = 3;
     private final FluidTank tank = new FluidTank(TANK_CAPACITY, stack -> stack.getFluid() == BloodMagicFluids.LIFE_ESSENCE_FLUID.get()) {
         @Override protected void onContentsChanged() { HemogenicBlockEntity.this.setChanged(); }
@@ -62,6 +62,7 @@ public final class HemogenicBlockEntity extends BaseMachineBlockEntity {
                 case 9 -> speedUpgradeCount();
                 case 10 -> energyUpgradeCount();
                 case 35 -> lastEnergyUsed();
+                case 36 -> upgradeTicks();
                 default -> {
                     int sideIndex = index - 11;
                     if (sideIndex >= 0 && sideIndex < MachineResource.values().length * RelativeMachineSide.values().length) {
@@ -74,11 +75,11 @@ public final class HemogenicBlockEntity extends BaseMachineBlockEntity {
             };
         }
         @Override public void set(int index, int value) { }
-        @Override public int getCount() { return 36; }
+        @Override public int getCount() { return 37; }
     };
 
     public HemogenicBlockEntity(BlockPos pos, BlockState state) {
-        super(ModContent.HEMOGENIC_BLOCK_ENTITY.get(), pos, state, SLOT_COUNT, 400_000, SPEED_UPGRADE_SLOT, ENERGY_UPGRADE_SLOT);
+        super(ModContent.HEMOGENIC_BLOCK_ENTITY.get(), pos, state, SLOT_COUNT, 400_000, UPGRADE_INPUT_SLOT, UPGRADE_OUTPUT_SLOT);
         for (Direction direction : Direction.values()) {
             sidedFluidCapabilities.put(direction, LazyOptional.of(() -> new HemogenicFluidHandler(direction)));
         }
@@ -86,6 +87,7 @@ public final class HemogenicBlockEntity extends BaseMachineBlockEntity {
 
     @Override
     public void serverTick() {
+        tickUpgrades();
         lastEnergyUsed = 0;
         transferItems();
         transferFluid();

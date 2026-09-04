@@ -8,9 +8,11 @@ import dev.bloodmekanism.machine.FactoryMode;
 import dev.bloodmekanism.machine.MachineBlock;
 import dev.bloodmekanism.machine.MachineBlockItem;
 import dev.bloodmekanism.machine.blockentity.HemogenicBlockEntity;
+import dev.bloodmekanism.machine.blockentity.LpChargerBlockEntity;
 import dev.bloodmekanism.machine.blockentity.UniversalFactoryBlockEntity;
 import dev.bloodmekanism.machine.blockentity.WillGeneratorBlockEntity;
 import dev.bloodmekanism.menu.HemogenicMenu;
+import dev.bloodmekanism.menu.LpChargerMenu;
 import dev.bloodmekanism.menu.UniversalFactoryMenu;
 import dev.bloodmekanism.menu.WillGeneratorMenu;
 import dev.bloodmekanism.recipe.BloodGeneratorRecipe;
@@ -52,6 +54,8 @@ public final class ModContent {
           () -> new MachineBlock(MACHINE_PROPERTIES, MachineBlock.Kind.HEMOGENIC, null));
     public static final RegistryObject<Block> WILL_GENERATOR = BLOCKS.register("will_generator",
           () -> new MachineBlock(MACHINE_PROPERTIES, MachineBlock.Kind.WILL_GENERATOR, null));
+    public static final RegistryObject<Block> LP_CHARGER = BLOCKS.register("lp_charger",
+          () -> new MachineBlock(MACHINE_PROPERTIES, MachineBlock.Kind.LP_CHARGER, null));
     public static final RegistryObject<Gas> RAW_WILL = GASES.register("raw_will", () -> new Gas(GasBuilder.builder().tint(0x8A2BE2)));
     public static final RegistryObject<Gas> CORROSIVE_WILL = GASES.register("corrosive_will", () -> new Gas(GasBuilder.builder().tint(0x55B84D)));
     public static final RegistryObject<Gas> DESTRUCTIVE_WILL = GASES.register("destructive_will", () -> new Gas(GasBuilder.builder().tint(0xD94B45)));
@@ -85,6 +89,8 @@ public final class ModContent {
           () -> BlockEntityType.Builder.of(HemogenicBlockEntity::new, HEMOGENIC_MACHINE.get()).build(null));
     public static final RegistryObject<BlockEntityType<WillGeneratorBlockEntity>> WILL_GENERATOR_BLOCK_ENTITY = BLOCK_ENTITIES.register("will_generator",
           () -> BlockEntityType.Builder.of(WillGeneratorBlockEntity::new, WILL_GENERATOR.get()).build(null));
+    public static final RegistryObject<BlockEntityType<LpChargerBlockEntity>> LP_CHARGER_BLOCK_ENTITY = BLOCK_ENTITIES.register("lp_charger",
+          () -> BlockEntityType.Builder.of(LpChargerBlockEntity::new, LP_CHARGER.get()).build(null));
     public static final RegistryObject<BlockEntityType<UniversalFactoryBlockEntity>> UNIVERSAL_FACTORY_BLOCK_ENTITY = BLOCK_ENTITIES.register("universal_blood_factory",
           () -> BlockEntityType.Builder.of(UniversalFactoryBlockEntity::new,
                 java.util.stream.Stream.concat(UNIVERSAL_FACTORIES.values().stream(), PROCESS_FACTORIES.values().stream())
@@ -94,6 +100,8 @@ public final class ModContent {
           () -> IForgeMenuType.create(HemogenicMenu::clientConstructor));
     public static final RegistryObject<MenuType<WillGeneratorMenu>> WILL_GENERATOR_MENU = MENUS.register("will_generator",
           () -> IForgeMenuType.create(WillGeneratorMenu::clientConstructor));
+    public static final RegistryObject<MenuType<LpChargerMenu>> LP_CHARGER_MENU = MENUS.register("lp_charger",
+          () -> IForgeMenuType.create(LpChargerMenu::clientConstructor));
     public static final RegistryObject<MenuType<UniversalFactoryMenu>> UNIVERSAL_FACTORY_MENU = MENUS.register("universal_blood_factory",
           () -> IForgeMenuType.create(UniversalFactoryMenu::clientConstructor));
 
@@ -109,6 +117,7 @@ public final class ModContent {
           .displayItems((parameters, output) -> {
               output.accept(HEMOGENIC_MACHINE.get());
               output.accept(WILL_GENERATOR.get());
+              output.accept(LP_CHARGER.get());
               UNIVERSAL_FACTORIES.values().forEach(block -> output.accept(block.get()));
               PROCESS_FACTORIES.values().forEach(block -> output.accept(block.get()));
               MECHANICAL_BLOOD_ORBS.values().forEach(item -> output.accept(item.get()));
@@ -128,6 +137,7 @@ public final class ModContent {
 
         ITEMS.register("hemogenic_machine", () -> new MachineBlockItem((MachineBlock) HEMOGENIC_MACHINE.get(), new Item.Properties()));
         ITEMS.register("will_generator", () -> new MachineBlockItem((MachineBlock) WILL_GENERATOR.get(), new Item.Properties()));
+        ITEMS.register("lp_charger", () -> new MachineBlockItem((MachineBlock) LP_CHARGER.get(), new Item.Properties()));
         for (Map.Entry<FactoryTier, RegistryObject<Block>> entry : UNIVERSAL_FACTORIES.entrySet()) {
             String name = entry.getKey().name().toLowerCase() + "_blood_factory";
             ITEMS.register(name, () -> new MachineBlockItem((MachineBlock) entry.getValue().get(), new Item.Properties()));

@@ -35,6 +35,7 @@ import org.jetbrains.annotations.Nullable;
 public final class UniversalFactoryScreen extends GuiMekanism<UniversalFactoryMenu> {
     private final SyncedFluidTank inputTank;
     private final SyncedFluidTank outputTank;
+    private final SyncedFluidTank recipeWaterTank;
     private final SyncedGasTank willTank;
     private FactoryControlTab sideConfigTab;
     private FactoryControlTab upgradeTab;
@@ -48,6 +49,7 @@ public final class UniversalFactoryScreen extends GuiMekanism<UniversalFactoryMe
         titleLabelY = 4;
         inputTank = new SyncedFluidTank(menu::inputFluidStack, menu::inputFluidMax);
         outputTank = new SyncedFluidTank(menu::outputFluidStack, menu::outputFluidMax);
+        recipeWaterTank = new SyncedFluidTank(menu::recipeWaterStack, menu::recipeWaterMax);
         willTank = new SyncedGasTank(menu::willGasStack, menu::willGasCapacity);
     }
 
@@ -60,9 +62,18 @@ public final class UniversalFactoryScreen extends GuiMekanism<UniversalFactoryMe
               MekanismLang.USING.translate(EnergyDisplay.of(FloatingLong.create(menu.lastEnergyUsed()))),
               MekanismLang.NEEDED.translate(EnergyDisplay.of(FloatingLong.create(Math.max(0L, (long) menu.maxEnergy() - menu.energy())))))));
 
-        List<mekanism.api.fluid.IExtendedFluidTank> tanks = List.of(inputTank, outputTank);
+        List<mekanism.api.fluid.IExtendedFluidTank> tanks = List.of(inputTank, outputTank, recipeWaterTank);
         addRenderableWidget(new GuiFluidBar(this, GuiFluidBar.getProvider(inputTank, tanks), 20, 82, 83, 4, true));
         addRenderableWidget(new GuiFluidBar(this, GuiFluidBar.getProvider(outputTank, tanks), 107, 82, 83, 4, true));
+        addRenderableWidget(new GuiFluidBar(this, GuiFluidBar.getProvider(recipeWaterTank, tanks), 78, 91, 80, 4, true) {
+            @Override public void drawBackground(@NotNull GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+                if (menu.mode() == FactoryMode.ALCHEMY_TABLE) super.drawBackground(graphics, mouseX, mouseY, partialTicks);
+            }
+
+            @Override public void renderToolTip(@NotNull GuiGraphics graphics, int mouseX, int mouseY) {
+                if (menu.mode() == FactoryMode.ALCHEMY_TABLE) super.renderToolTip(graphics, mouseX, mouseY);
+            }
+        });
         addRenderableWidget(new GuiChemicalBar<Gas, GasStack>(this,
               GuiChemicalBar.getProvider(willTank, List.of(willTank)), 78, 91, 80, 4, true) {
             @Override public void drawBackground(@NotNull GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
@@ -90,7 +101,7 @@ public final class UniversalFactoryScreen extends GuiMekanism<UniversalFactoryMe
             }
         });
 
-        addRenderableWidget(new GuiProgress(this::recipeProgress, ProgressType.RIGHT, this, 111, 43) {
+        addRenderableWidget(new GuiProgress(this::recipeProgress, ProgressType.SMALL_RIGHT, this, 109, 43) {
             @Override public void renderToolTip(@NotNull GuiGraphics graphics, int mouseX, int mouseY) {
                 super.renderToolTip(graphics, mouseX, mouseY);
                 displayTooltips(graphics, mouseX, mouseY, menu.processingStatus().title());
@@ -112,12 +123,14 @@ public final class UniversalFactoryScreen extends GuiMekanism<UniversalFactoryMe
 
     private void addSlotFrames() {
         for (int index = 0; index < menu.slots.size(); index++) {
+            if (index == UniversalFactoryBlockEntity.UPGRADE_INPUT_SLOT || index == UniversalFactoryBlockEntity.UPGRADE_OUTPUT_SLOT) continue;
             Slot slot = menu.slots.get(index);
             SlotType type = index < UniversalFactoryBlockEntity.INPUT_COUNT ? SlotType.INPUT
                   : index == UniversalFactoryBlockEntity.CATALYST_SLOT ? SlotType.EXTRA
-                  : index < UniversalFactoryBlockEntity.SPEED_UPGRADE_SLOT ? SlotType.OUTPUT
+                  : index < UniversalFactoryBlockEntity.UPGRADE_INPUT_SLOT ? SlotType.OUTPUT
                   : index < UniversalFactoryBlockEntity.SLOT_COUNT ? SlotType.EXTRA : SlotType.NORMAL;
-            addRenderableWidget(new GuiSlot(type, this, slot.x - 1, slot.y - 1));
+            GuiSlot frame = new GuiSlot(type, this, slot.x - 1, slot.y - 1);
+            addRenderableWidget(frame);
         }
     }
 
@@ -216,7 +229,8 @@ public final class UniversalFactoryScreen extends GuiMekanism<UniversalFactoryMe
 
     private void openUpgradeWindow() {
         BloodUpgradeWindow window = new BloodUpgradeWindow(this, imageWidth / 2 - 78, 15,
-              menu::speedUpgrades, menu::energyUpgrades, this::clickControl);
+              menu::speedUpgrades, menu::energyUpgrades, menu::upgradeTicks, this::clickControl,
+              UniversalFactoryBlockEntity.UPGRADE_INPUT_SLOT, UniversalFactoryBlockEntity.UPGRADE_OUTPUT_SLOT);
         window.setTabListeners(closed -> upgradeTab.active = true, reattached -> upgradeTab.active = false);
         upgradeTab.active = false;
         addWindow(window);
@@ -225,12 +239,15 @@ public final class UniversalFactoryScreen extends GuiMekanism<UniversalFactoryMe
     @Override
     protected void drawForegroundText(@NotNull GuiGraphics graphics, int mouseX, int mouseY) {
         renderTitleText(graphics);
-        drawString(graphics, Component.translatable("gui.bloodmekanism.item_inputs"), 20, 12, titleTextColor());
-        drawString(graphics, Component.translatable("gui.bloodmekanism.item_outputs"), 138, 12, titleTextColor());
-        drawString(graphics, Component.literal("S"), 198, 28, titleTextColor());
-        drawString(graphics, Component.literal("E"), 198, 54, titleTextColor());
-        drawString(graphics, menu.mode().title(), 82, 72, titleTextColor());
+        drawScaledCenteredTextScaledBound(graphics, Component.translatable("gui.bloodmekanism.item_inputs"),
+              48, 12, titleTextColor(), 56, 1);
+        drawScaledCenteredTextScaledBound(graphics, Component.translatable("gui.bloodmekanism.item_outputs"),
+              166, 12, titleTextColor(), 56, 1);
+        drawScaledCenteredTextScaledBound(graphics, menu.mode().title(),
+              105, 68, titleTextColor(), 80, 1);
         if (menu.mechanicalLpCapacity() > 0) drawString(graphics, Component.literal("LP"), 62, 91, titleTextColor());
+        if (menu.mode() == FactoryMode.ALCHEMY_TABLE) drawString(graphics,
+              Component.translatable("gui.bloodmekanism.recipe_water"), 47, 91, titleTextColor());
         if (menu.mode() == FactoryMode.SOUL_FORGE) drawString(graphics, Component.literal("Will"), 54, 91, titleTextColor());
         drawString(graphics, playerInventoryTitle, inventoryLabelX, inventoryLabelY, titleTextColor());
         super.drawForegroundText(graphics, mouseX, mouseY);

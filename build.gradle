@@ -14,6 +14,15 @@ base {
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
+sourceSets {
+    gameTest {
+        java.srcDir 'src/gameTest/java'
+        resources.srcDir 'src/gameTest/resources'
+        compileClasspath += sourceSets.main.output + configurations.compileClasspath
+        runtimeClasspath += output + compileClasspath
+    }
+}
+
 minecraft {
     mappings channel: 'official', version: minecraft_version
     copyIdeResources = true
@@ -21,10 +30,15 @@ minecraft {
 
 repositories {
     flatDir { dirs '../Mekanism/build/libs' }
+    maven { url = 'https://maven.blamejared.com' }
 }
 
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+
+    // JEI integration is optional at runtime, but compiled against the same API as Blood Magic.
+    compileOnly "mezz.jei:jei-${minecraft_version}-common-api:${jei_version}"
+    compileOnly "mezz.jei:jei-${minecraft_version}-forge-api:${jei_version}"
 
     // Compile the client screens against Mekanism's native GUI framework.
     compileOnly fileTree(dir: '../Mekanism/build/libs', include: '*-dev.jar')
@@ -32,6 +46,9 @@ dependencies {
     // Blood Magic is loaded from source by the shared development client.
     compileOnly files('../BloodMagic/build/classes/java/main')
     compileOnly files('../BloodMagic/build/resources/main')
+
+    // Game tests are included only in the development JAR.
+    gameTestCompileOnly fileTree(dir: '../Applied-Energistics-2/build/libs', include: '*.jar')
 }
 
 tasks.named('processResources', ProcessResources).configure {
@@ -67,7 +84,9 @@ tasks.named('jar', Jar).configure {
 }
 
 tasks.register('devJar', Jar) {
+    dependsOn tasks.named('gameTestClasses')
     from sourceSets.main.output
+    from sourceSets.gameTest.output
     archiveClassifier = 'dev'
 }
 

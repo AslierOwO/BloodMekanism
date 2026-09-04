@@ -3,6 +3,7 @@ package dev.bloodmekanism.client;
 import java.util.List;
 import dev.bloodmekanism.machine.RedstoneMode;
 import dev.bloodmekanism.machine.MachineResource;
+import dev.bloodmekanism.machine.blockentity.HemogenicBlockEntity;
 import dev.bloodmekanism.menu.HemogenicMenu;
 import mekanism.api.math.FloatingLong;
 import mekanism.client.gui.GuiMekanism;
@@ -65,8 +66,10 @@ public final class HemogenicScreen extends GuiMekanism<HemogenicMenu> {
 
     private void addSlotFrames() {
         for (int index = 0; index < menu.slots.size(); index++) {
+            if (index == HemogenicBlockEntity.UPGRADE_INPUT_SLOT || index == HemogenicBlockEntity.UPGRADE_OUTPUT_SLOT) continue;
             Slot slot = menu.slots.get(index);
-            addRenderableWidget(new GuiSlot(index == 0 ? SlotType.INPUT : SlotType.EXTRA, this, slot.x - 1, slot.y - 1));
+            GuiSlot frame = new GuiSlot(index == 0 ? SlotType.INPUT : SlotType.EXTRA, this, slot.x - 1, slot.y - 1);
+            addRenderableWidget(frame);
         }
     }
 
@@ -108,7 +111,8 @@ public final class HemogenicScreen extends GuiMekanism<HemogenicMenu> {
 
     private void openUpgradeWindow() {
         BloodUpgradeWindow window = new BloodUpgradeWindow(this, imageWidth / 2 - 78, 15,
-              menu::speedUpgrades, menu::energyUpgrades, this::clickControl);
+              menu::speedUpgrades, menu::energyUpgrades, menu::upgradeTicks, this::clickControl,
+              HemogenicBlockEntity.UPGRADE_INPUT_SLOT, HemogenicBlockEntity.UPGRADE_OUTPUT_SLOT);
         window.setTabListeners(closed -> upgradeTab.active = true, reattached -> upgradeTab.active = false);
         upgradeTab.active = false;
         addWindow(window);
@@ -117,9 +121,7 @@ public final class HemogenicScreen extends GuiMekanism<HemogenicMenu> {
     @Override
     protected void drawForegroundText(@NotNull GuiGraphics graphics, int mouseX, int mouseY) {
         renderTitleText(graphics);
-        drawString(graphics, Component.translatable("gui.bloodmekanism.item_input"), 51, 24, titleTextColor());
-        drawString(graphics, Component.literal("S"), 198, 27, titleTextColor());
-        drawString(graphics, Component.literal("E"), 198, 53, titleTextColor());
+        drawTextScaledBound(graphics, Component.translatable("gui.bloodmekanism.item_input"), 51, 24, titleTextColor(), 72);
         drawString(graphics, playerInventoryTitle, inventoryLabelX, inventoryLabelY, titleTextColor());
         super.drawForegroundText(graphics, mouseX, mouseY);
     }
